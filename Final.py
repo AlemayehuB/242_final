@@ -92,8 +92,6 @@ def AcceptCoordinates(r1,r2,temperature):
         Boltzmann(r2[false_idx],rdot[false_idx],temperature)/Boltzmann(r1[false_idx],rdot[false_idx],temperature)] \
         = True
 
-        accept_list[ (r2 < rbounds[0]) | (rbounds[1] < r2) ] = True
-
     return accept_list
 
 def UpdateCoordinates(r,temperature,dr):
