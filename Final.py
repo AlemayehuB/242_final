@@ -92,7 +92,7 @@ def AcceptCoordinates(r1,r2,temperature):
         Boltzmann(r2[false_idx],rdot[false_idx],temperature)/Boltzmann(r1[false_idx],rdot[false_idx],temperature)] \
         = True
 
-        accept_list[ (r2 < rbounds[0])*(rbounds[1] < r2) ] = True
+        accept_list[ (r2 < rbounds[0]) | (rbounds[1] < r2) ] = True
 
     return accept_list
 
@@ -123,11 +123,14 @@ def SimulationStart(temperature,N=100,dr=1, Nsteps=1000, plot_paths = False):
             print(f'{i}/{Nsteps}')
         rlist.append(r)
 
-        r = UpdateCoordinates(r,temperature,dr)
+        r_ = UpdateCoordinates(r,temperature,dr)
 
-        #need to calculate rdot here first
-        #Elist.append(H(r,rdot))
+        rdot = derivative(r,r_,epsilon)
+        Elist.append(H(r,rdot))
 
+        r=r_
+
+        #print(np.mean(Elist))
     Elist = np.array(Elist)
     plot_distribution(r)
     
@@ -151,4 +154,4 @@ if __name__ == '__main__':
 
     rbounds = [-2,2]
 
-    SimulationStart(temperature,N=N,dr=dr, Nsteps=Nsteps)
+    print('Energy = ',SimulationStart(temperature,N=N,dr=dr, Nsteps=Nsteps))
