@@ -67,7 +67,7 @@ def InitializeSystem(rbounds,N):
     '''
     return np.linspace(rbounds[0],rbounds[1],N)
 
-def GetTrialCoordinates(r,dr):
+def GetTrialCoordinates(r):
     '''
     Randomly generate new coordinates dr away from current position
     '''
@@ -94,15 +94,15 @@ def AcceptCoordinates(r1,r2,temperature):
 
     return accept_list
 
-def UpdateCoordinates(r,temperature,dr):
-    r_ = GetTrialCoordinates(r,dr)
+def UpdateCoordinates(r,temperature):
+    r_ = GetTrialCoordinates(r)
     accept_list = AcceptCoordinates(r,r_,temperature)
     false_idx = np.nonzero( ~accept_list[0] )[0]
 
     # Get new coordinates for all trial states that were declined
     # repeat process until all states are accepted
     while false_idx.size > 0:
-        r_f = GetTrialCoordinates(r_[false_idx],dr)
+        r_f = GetTrialCoordinates(r_[false_idx])
 
         accept_list[false_idx] = AcceptCoordinates(r[false_idx],r_f,temperature)
         false_idx = np.nonzero( ~accept_list )[0]
@@ -111,7 +111,7 @@ def UpdateCoordinates(r,temperature,dr):
 
 #---------------SIMULATION MAIN--------------------
 
-def SimulationStart(temperature,N=100,dr=1, Nsteps=1000, plot_paths = False):
+def SimulationStart(temperature,N=100, plot_paths = False):
     r = InitializeSystem(rbounds,N=N)
     rlist = []
     Elist = []
@@ -121,7 +121,7 @@ def SimulationStart(temperature,N=100,dr=1, Nsteps=1000, plot_paths = False):
             print(f'{i}/{Nsteps}')
         rlist.append(r)
 
-        r_ = UpdateCoordinates(r,temperature,dr)
+        r_ = UpdateCoordinates(r,temperature)
 
         rdot = derivative(r,r_,epsilon)
         Elist.append(H(r,rdot))
@@ -141,15 +141,15 @@ def SimulationStart(temperature,N=100,dr=1, Nsteps=1000, plot_paths = False):
 
 if __name__ == '__main__':
 
-    #parameters
+    #Global variables
     w      = 1
     dr = 0.01
     a,b = 1,1
-    Nsteps = 1000
-    N=100
+    Nsteps = 5000
+    N=1000
     epsilon = 1/N
     temperature = 0.01 * w
 
     rbounds = [-2,2]
 
-    print('Energy = ',SimulationStart(temperature,N=N,dr=dr, Nsteps=Nsteps))
+    print(f'Energy = {SimulationStart(temperature)}')
