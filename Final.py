@@ -3,13 +3,12 @@ import matplotlib.pyplot as plt
 import os
 
 
-def derivative(r1,r2,dt):
-    return (r2-r1)/dt
-
+def derivative(r,dt):
+    return np.concatenate( ([0],0.5*(r[2:]-r[:-2])/dt,[0]) )
 #----------------PROBLEM SETUP--------------
 def V(r):
     '''
-    harmonic oscillator potential
+    double well potential
     '''
     return a*(r**2 - b**2)**2
 
@@ -61,58 +60,66 @@ def plot_distribution(r):
     
 #---------------MONTE CARLO STUFF------------------------
 
-def InitializeSystem(rbounds,N):
+def InitializeSystem():
     '''
     Set positions
     '''
-    return np.linspace(rbounds[0],rbounds[1],N)
+    return np.full(N,x_initial)
 
 def GetTrialCoordinates(r):
     '''
     Randomly generate new coordinates dr away from current position
     '''
-    r_ = r + (-1)**np.random.randint(2,size=len(r))*dr 
+    return r + (-1)**np.random.randint(2,size=len(r))*dr 
 
-    # if new coordinates are out of bounds, r_new = r_old
-    r_[rbounds[1] <= r_] = r[rbounds[1] <= r_]
-    r_[r_ <= rbounds[0]] = r[r_ <= rbounds[0]]
-
-    return r_
-
-def AcceptCoordinates(r1,r2,temperature):
+def AcceptCoordinates(r1,r2,r1dot,r2dot,temperature):
     '''
     whether or not proposed step is accepted. Metropolis algorithm
     '''
-    rdot = derivative(r1,r2,epsilon)
-    accept_list = Boltzmann(r2,rdot,temperature) >= Boltzmann(r1,rdot,temperature)
+    accept_list = Boltzmann(r2,r2dot,temperature) >= Boltzmann(r1,r1dot,temperature)
     false_idx = np.nonzero( ~accept_list )[0]
     #If new state is less probable than old one, roll the dice
     if false_idx.size > 0:
-        accept_list[false_idx][np.random.rand(len(false_idx)) < \
-        Boltzmann(r2[false_idx],rdot[false_idx],temperature)/Boltzmann(r1[false_idx],rdot[false_idx],temperature)] \
-        = True
+        accept_list[false_idx] = np.random.rand(len(false_idx)) <= \
+        Boltzmann(r2[false_idx],r2dot[false_idx],temperature)/Boltzmann(r1[false_idx],r1dot[false_idx],temperature)
 
+        #print(f'acceptance probability = {np.mean(Boltzmann(r2[false_idx],r2dot[false_idx],temperature)/Boltzmann(r1[false_idx],r1dot[false_idx],temperature))}')
     return accept_list
 
-def UpdateCoordinates(r,temperature):
-    r_ = GetTrialCoordinates(r)
-    accept_list = AcceptCoordinates(r,r_,temperature)
-    false_idx = np.nonzero( ~accept_list[0] )[0]
+def UpdateCoordinates(r1,temperature):
+    r2 = GetTrialCoordinates(r1)
+    #keep endpoints fixed
+    r2[0] = r1[0]
+    r2[-1] = r1[-1]
+
+    r1dot = derivative(r1,epsilon)
+    r2dot = derivative(r2,epsilon)
+    accept_list = AcceptCoordinates(r1,r2,r1dot,r2dot,temperature)
+    false_idx = np.nonzero( ~accept_list )[0]
 
     # Get new coordinates for all trial states that were declined
     # repeat process until all states are accepted
     while false_idx.size > 0:
-        r_f = GetTrialCoordinates(r_[false_idx])
+        r2_f = GetTrialCoordinates(r2[false_idx])
 
-        accept_list[false_idx] = AcceptCoordinates(r[false_idx],r_f,temperature)
+        #calculate r2dot using new coordinates
+        r2_copy = np.copy(r2)
+        r2_copy[false_idx] = r2_f
+        r2dot = derivative(r2_copy,epsilon)
+        
+        accept_list[false_idx] = AcceptCoordinates(r1[false_idx],r2_f,r1dot[false_idx],r2dot[false_idx],temperature)
         false_idx = np.nonzero( ~accept_list )[0]
 
-    return r_
+        #print(accept_list[false_idx])
+
+        r2[accept_list] = r2_copy[accept_list] #update positions
+
+    return r2
 
 #---------------SIMULATION MAIN--------------------
 
-def SimulationStart(temperature,N=100, plot_paths = False):
-    r = InitializeSystem(rbounds,N=N)
+def SimulationStart(temperature):
+    r = InitializeSystem()
     rlist = []
     Elist = []
 
@@ -123,7 +130,7 @@ def SimulationStart(temperature,N=100, plot_paths = False):
 
         r_ = UpdateCoordinates(r,temperature)
 
-        rdot = derivative(r,r_,epsilon)
+        rdot = derivative(r_,epsilon)
         Elist.append(H(r,rdot))
 
         r=r_
@@ -145,11 +152,14 @@ if __name__ == '__main__':
     w      = 1
     dr = 0.01
     a,b = 1,1
-    Nsteps = 5000
-    N=1000
-    epsilon = 1/N
+    Nsteps = 500
+    N=10000
+
+    #dt = 1 / b**2 #dt = tunneling time
+    epsilon = 1#dt/N #epsilon should be much less than the tunneling time (t_tunnel ~ pi/epsilon)
     temperature = 0.01 * w
 
-    rbounds = [-2,2]
+    x_initial = 0
+    plot_paths = False
 
     print(f'Energy = {SimulationStart(temperature)}')
