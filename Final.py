@@ -5,6 +5,7 @@ import os
 
 def derivative(r,dt):
     return np.concatenate( ([0],0.5*(r[2:]-r[:-2])/dt,[0]) )
+
 #----------------PROBLEM SETUP--------------
 def V(r):
     '''
@@ -49,14 +50,28 @@ def plot_random_walk(rlist,temperature):
 
 def plot_distribution(r):
     plt.figure(figsize=(10,10))
-    plt.hist(r,bins=20,density=True)
+    plt.hist(r,bins=100,density=True)
+    r_ = np.linspace(-2*b, 2*b,100)
+    plt.plot(r_,V(r_),color='k')
     plt.xlabel('x',fontsize=30)
     plt.ylabel('PDF',fontsize=30)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
     plt.tight_layout()
     plt.savefig('pdf_double_well.png',bbox_inches='tight')
+    plt.close()
 
+def plot_E_vs_T(Elist,Tlist,suffix='lowtemp'):
+    plt.figure(figsize=(10,10))
+
+    plt.plot(Tlist,Elist,c='k')
+    plt.xlabel('Temperature',fontsize=30)
+    plt.ylabel('<E>',fontsize=30)
+    plt.xticks(fontsize=20)
+    plt.yticks(fontsize=20)
+    plt.tight_layout()
+    plt.savefig(f'E_vs_T_{suffix}.png',bbox_inches='tight')
+    plt.close()
     
 #---------------MONTE CARLO STUFF------------------------
 
@@ -76,10 +91,11 @@ def AcceptCoordinates(r1,r2,r1dot,r2dot,temperature):
     '''
     whether or not proposed step is accepted. Metropolis algorithm
     '''
-    accept_list = Boltzmann(r2,r2dot,temperature) >= Boltzmann(r1,r1dot,temperature)
+    accept_list = H(r2,r2dot) <= H(r1,r1dot) #Boltzmann(r2,r2dot,temperature) >= Boltzmann(r1,r1dot,temperature)
     false_idx = np.nonzero( ~accept_list )[0]
     #If new state is less probable than old one, roll the dice
     if false_idx.size > 0:
+        #print(H(r1,r1dot)/temperature)
         accept_list[false_idx] = np.random.rand(len(false_idx)) <= \
         Boltzmann(r2[false_idx],r2dot[false_idx],temperature)/Boltzmann(r1[false_idx],r1dot[false_idx],temperature)
 
@@ -137,7 +153,9 @@ def SimulationStart(temperature):
 
         #print(np.mean(Elist))
     Elist = np.array(Elist)
-    plot_distribution(r)
+
+    if plot_pdf:
+        plot_distribution(r)
     
     if plot_paths:
         plot_random_walk(rlist,temperature)
@@ -145,21 +163,46 @@ def SimulationStart(temperature):
     return np.mean(Elist)
 
 
+#----------------RUN SIMULATION REPEATEDLY--------------
+
+def E_vs_T(Tlist,Tlimit='low'):
+    Elist  = []
+
+    for temperature in Tlist:
+        E = SimulationStart(temperature)
+        Elist.append(E)
+        print(f'<E> = {E}')
+
+    plot_E_vs_T( np.array(Elist),np.array(Tlist),f'{Tlimit}temp' )
+
+
 
 if __name__ == '__main__':
 
     #Global variables
     w      = 1
+    x_initial = 0
     dr = 0.01
-    a,b = 1,1
-    Nsteps = 500
-    N=10000
+    a,b = 2,1
+    Nsteps = 2000 #number of timesteps
+    N=10000 #number of walkers
 
-    #dt = 1 / b**2 #dt = tunneling time
-    epsilon = 1#dt/N #epsilon should be much less than the tunneling time (t_tunnel ~ pi/epsilon)
+    epsilon = 1 #epsilon should be much less than the tunneling time
     temperature = 0.01 * w
 
     x_initial = 0
+    plot_pdf = False
     plot_paths = False
 
-    print(f'Energy = {SimulationStart(temperature)}')
+    # ---------- NUMBER 1 + 2 -----------------
+    
+    plot_pdf = True
+    SimulationStart(temperature)
+    plot_pdf = False
+
+    Tlist = np.linspace(0.005,0.05,10)
+    E_vs_T(Tlist,'low')
+
+    # ------------- NUMBER 3 ----------------
+    #Tlist = np.linspace(1,20,10)
+    #E_vs_T(Tlist,'high')
