@@ -4,7 +4,7 @@ import os
 
 
 def derivative(r,dt):
-    return np.concatenate( ([0],0.5*(r[2:]-r[:-2])/dt,[0]) )
+    return np.concatenate( ([0.5*(r[1] - r[-2])], 0.5*(r[2:]-r[:-2]), [0.5*(r[1] - r[-2])]) ) / dt
 
 #----------------PROBLEM SETUP--------------
 def V(r):
@@ -29,7 +29,7 @@ def Boltzmann(r,rdot,temperature):
     '''
     numerical weight of a given state for system following Boltzmann distribution (un-normalized)
     '''
-    return np.exp( -1*H(r,rdot)/temperature )
+    return np.longdouble(np.exp( -1*H(r,rdot)/temperature ))
 
 #---------------PLOTTING------------------------
 
@@ -40,7 +40,7 @@ def plot_random_walk(rlist,temperature):
         plt.scatter(rlist[i],np.full_like(rlist[i],i),color='k',s = 10,alpha = 0.1)
 
     plt.xlabel('x',fontsize=30)
-    plt.ylabel('time',fontsize=30)
+    plt.ylabel('iteration',fontsize=30)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
 
@@ -48,17 +48,18 @@ def plot_random_walk(rlist,temperature):
     plt.savefig('MCMC_double_well.png')
     plt.close()
 
-def plot_distribution(r):
+def plot_distribution(r,savename='pdf_double_well'):
     plt.figure(figsize=(10,10))
     plt.hist(r,bins=100,density=True)
     r_ = np.linspace(-2*b, 2*b,100)
     plt.plot(r_,V(r_),color='k')
     plt.xlabel('x',fontsize=30)
-    plt.ylabel('PDF',fontsize=30)
+    #plt.ylabel('PDF',fontsize=30)
     plt.xticks(fontsize=20)
     plt.yticks(fontsize=20)
+    #plt.ylim(0,10)
     plt.tight_layout()
-    plt.savefig('pdf_double_well.png',bbox_inches='tight')
+    plt.savefig(f'{savename}.png',bbox_inches='tight')
     plt.close()
 
 def plot_E_vs_T(Elist,Tlist,suffix='lowtemp'):
@@ -95,7 +96,6 @@ def AcceptCoordinates(r1,r2,r1dot,r2dot,temperature):
     false_idx = np.nonzero( ~accept_list )[0]
     #If new state is less probable than old one, roll the dice
     if false_idx.size > 0:
-        #print(H(r1,r1dot)/temperature)
         accept_list[false_idx] = np.random.rand(len(false_idx)) <= \
         Boltzmann(r2[false_idx],r2dot[false_idx],temperature)/Boltzmann(r1[false_idx],r1dot[false_idx],temperature)
 
@@ -104,9 +104,6 @@ def AcceptCoordinates(r1,r2,r1dot,r2dot,temperature):
 
 def UpdateCoordinates(r1,temperature):
     r2 = GetTrialCoordinates(r1)
-    #keep endpoints fixed
-    r2[0] = r1[0]
-    r2[-1] = r1[-1]
 
     r1dot = derivative(r1,epsilon)
     r2dot = derivative(r2,epsilon)
@@ -130,11 +127,15 @@ def UpdateCoordinates(r1,temperature):
 
         r2[accept_list] = r2_copy[accept_list] #update positions
 
+    #keep endpoints together (must have closed path)
+    #Endpoints can move around still, they just need to be the same
+    r2[-1] = r2[0]
+
     return r2
 
 #---------------SIMULATION MAIN--------------------
 
-def SimulationStart(temperature):
+def SimulationStart(temperature,temp_iter=0):
     r = InitializeSystem()
     rlist = []
     Elist = []
@@ -142,6 +143,8 @@ def SimulationStart(temperature):
     for i in range(Nsteps):
         if i % 100 == 0: 
             print(f'{i}/{Nsteps}')
+            if plot_pdf:
+                plot_distribution(r,savename=f'pdf_evolution_{i:04d}')
         rlist.append(r)
 
         r_ = UpdateCoordinates(r,temperature)
@@ -156,7 +159,6 @@ def SimulationStart(temperature):
 
     if plot_pdf:
         plot_distribution(r)
-    
     if plot_paths:
         plot_random_walk(rlist,temperature)
 
@@ -168,8 +170,13 @@ def SimulationStart(temperature):
 def E_vs_T(Tlist,Tlimit='low'):
     Elist  = []
 
-    for temperature in Tlist:
-        E = SimulationStart(temperature)
+    global dt
+    global epsilon
+    for i,temperature in enumerate(Tlist):
+        dt = 1/temperature
+        epsilon = dt/N
+        
+        E = SimulationStart(temperature,temp_iter=i)
         Elist.append(E)
         print(f'<E> = {E}')
 
@@ -181,27 +188,42 @@ if __name__ == '__main__':
 
     #Global variables
     w      = 1
-    x_initial = 0
-    dr = 0.01
     a,b = 2,1
-    Nsteps = 2000 #number of timesteps
-    N=10000 #number of walkers
 
     epsilon = 1 #epsilon should be much less than the tunneling time
-    temperature = 0.01 * w
-
     x_initial = 0
+
+    # ---------- NUMBER 1 + 2 -----------------
+
+    #temperature = 0.001
+    #dt = 1/temperature #total time for each path
+    #Nsteps = 1000 #number of timesteps
+    #N=100 #number of walkers
+    #dr = b/N
+    #epsilon = dt/N 
+
+    temperature = 0.01
+    epsilon = 1
+    Nsteps = 2000
+    N = 100000
+    dr = 0.01
+
+
+
+    plot_pdf = True
+    plot_paths = False
+
+    SimulationStart(temperature)
+
     plot_pdf = False
     plot_paths = False
 
-    # ---------- NUMBER 1 + 2 -----------------
+    #Tlist = np.linspace(0.005,0.05,10)
+    #Nsteps = 2000 #number of timesteps
+    #N=10000 #number of walkers
     
-    plot_pdf = True
-    SimulationStart(temperature)
-    plot_pdf = False
-
-    Tlist = np.linspace(0.005,0.05,10)
-    E_vs_T(Tlist,'low')
+    #temp_iter = 0
+    #E_vs_T(Tlist,'low')
 
     # ------------- NUMBER 3 ----------------
     #Tlist = np.linspace(1,20,10)
